@@ -9,7 +9,7 @@
 import { fromEventPattern, of, fromEvent } from 'rxjs';
 import { concatMap, delay, map, mergeMap, takeUntil } from 'rxjs/operators';
 import jsonStream from './json_stream';
-import { pipe, noop, green, always } from './utils';
+import { pipe, noop, green } from './utils';
 import { ingest } from './ingest';
 import {
   staticSite,
@@ -37,8 +37,6 @@ const format = 'YYYY-MM-DDTHH:mm:SS';
 // eslint-disable-next-line import/namespace
 const formatted = `${moment.utc().format(format)}Z`;
 const addPrePopulatedTimeStamp = addTimeStamp(process.env.TIME_STAMP || formatted);
-const preamble = pipe(statsAndstaticSiteUrl, rootDirAndOrigPath, buildId, addPrePopulatedTimeStamp);
-const addTestRunnerAndStaticSiteUrl = pipe(testRunner, staticSite(staticSiteUrlBase));
 
 const transform = (jsonSummaryPath) => (log) => (vcsInfo) => (teamAssignmentsPath) => {
   const objStream = jsonStream(jsonSummaryPath).on('done', noop);
@@ -49,12 +47,20 @@ const transform = (jsonSummaryPath) => (log) => (vcsInfo) => (teamAssignmentsPat
 
   fromEventPattern(jsonSummary$)
     .pipe(
-      map(preamble),
-      map(coveredFilePath),
-      map(itemizeVcsInfo),
-      map(ciRunUrl),
-      map(addJsonSummaryPath(jsonSummaryPath)),
-      map(addTestRunnerAndStaticSiteUrl),
+      map(
+        pipe(
+          statsAndstaticSiteUrl,
+          rootDirAndOrigPath,
+          buildId,
+          addPrePopulatedTimeStamp,
+          coveredFilePath,
+          itemizeVcsInfo,
+          ciRunUrl,
+          addJsonSummaryPath(jsonSummaryPath),
+          testRunner,
+          staticSite(staticSiteUrlBase)
+        )
+      ),
       mergeMap(assignTeams),
       concatMap((x) => of(x).pipe(delay(ms)))
     )
@@ -85,7 +91,7 @@ export const prok = ({ jsonSummaryPath, vcsInfoFilePath, teamAssignmentsPath }, 
   vcsInfoLines$(vcsInfoFilePath).subscribe(
     mutateVcsInfo(vcsInfo),
     (err) => log.error(err),
-    always(xformWithPath(vcsInfo)(teamAssignmentsPath))
+    () => xformWithPath(vcsInfo)(teamAssignmentsPath)
   );
 };
 

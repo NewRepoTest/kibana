@@ -11,13 +11,11 @@ import { map, filter, takeUntil } from 'rxjs/operators';
 import { lineRead, pathAndTeams, empties, comments, dropCCDelim } from './parse_owners_helpers';
 import { pipe } from '../utils';
 
-const cleanAndParse = pipe(dropCCDelim, pathAndTeams);
-
 const allLines$ = (lineReader) =>
   fromEvent(lineReader, 'line').pipe(
     filter(empties),
     filter(comments),
-    map(cleanAndParse),
+    map(pipe(dropCCDelim, pathAndTeams)),
     takeUntil(fromEvent(lineReader, 'close'))
   );
 
